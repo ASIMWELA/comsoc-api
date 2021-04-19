@@ -36,7 +36,7 @@ public class JwtTokenProvider implements Serializable
         MemberDetailsImpl userPrincipal = (MemberDetailsImpl) authentication.getPrincipal();
 
         return Jwts.builder()
-                .setSubject((userPrincipal.getUsername()))
+                .setSubject((userPrincipal.getUsername().toLowerCase()))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(SignatureAlgorithm.HS512, jwtSecret)
@@ -45,7 +45,7 @@ public class JwtTokenProvider implements Serializable
 
     public String getRegNumberFromToken(String token)
     {
-        return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject().toLowerCase();
     }
 
     public String getExpirationMinutes(String token)  {

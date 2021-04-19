@@ -88,15 +88,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter
             .and()
                 .authorizeRequests()
                     .antMatchers(HttpMethod.POST,
-                            "/api/comsoc/signin"
+                            "/api/comsoc/members/signin"
                             )
                             .permitAll()
                     .antMatchers(HttpMethod.GET,
-                        "/api/v1/users",
-                                    "/api/v1/users/**",
-                                    "/api/v1/projects",
-                                    "/api/v1/projects/**",
-                            "/api/v1/resources")
+                        "/api/comsoc/members/**"
+                    )
                              .permitAll()
                 .antMatchers("/",
                             "/favicon.ico",

@@ -7,9 +7,11 @@ import lombok.experimental.FieldDefaults;
 import java.util.List;
 
 @AllArgsConstructor
+@NoArgsConstructor
+@Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
-@NoArgsConstructor
-public class ExecutiveMembers {
-    List<Member> executives;
+public class PagedResponse {
+    List<Member> membersList;
+    PageMetadata pageMetadata;
 }

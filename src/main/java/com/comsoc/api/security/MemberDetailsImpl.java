@@ -28,8 +28,8 @@ public class MemberDetailsImpl implements UserDetails
                 .collect(Collectors.toList());
 
         return new MemberDetailsImpl(
-                member.getRegNumber(),
-                member.getEmail(),
+                member.getRegNumber().toLowerCase(),
+                member.getEmail().toLowerCase(),
                 member.getPassword(),
                 authorities);
     }

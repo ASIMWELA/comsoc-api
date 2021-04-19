@@ -13,7 +13,9 @@ import com.comsoc.api.repository.RoleRepository;
 import com.comsoc.api.security.JwtTokenProvider;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,14 +24,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.validation.Valid;
-import java.text.ParseException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+
 
 @Service
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -57,10 +58,10 @@ public class MemberService {
     }
 
     public ResponseEntity<ApiResponse> signupMember(@Valid @RequestBody SignupRequest signupRequest){
-        if(memberRepository.existsByRegNumber(signupRequest.getRegNumber())) {
+        if(memberRepository.existsByRegNumber(signupRequest.getRegNumber().toLowerCase())) {
             return new ResponseEntity<>(new ApiResponse(false, "Registration number already exist in the system"), HttpStatus.CONFLICT);
         }
-        if(memberRepository.existsByEmail(signupRequest.getEmail())){
+        if(memberRepository.existsByEmail(signupRequest.getEmail().toLowerCase())){
             return new ResponseEntity<>(new ApiResponse(false, "Email already exist in the system"), HttpStatus.CONFLICT);
         }
 
@@ -70,9 +71,9 @@ public class MemberService {
         }
         Member member = new Member(signupRequest.getFirstName(),
                 signupRequest.getLastName(),
-                signupRequest.getEmail(),
+                signupRequest.getEmail().toLowerCase(),
                 signupRequest.getPassword(),
-                signupRequest.getRegNumber(),
+                signupRequest.getRegNumber().toLowerCase(),
                 signupRequest.getYear());
         member.setPassword(passwordEncoder.encode(member.getPassword()));
         Role roleUser = roleRepository.findByName(ERole.ROLE_USER).orElseThrow(
@@ -87,11 +88,11 @@ public class MemberService {
     public ResponseEntity<SigninResponse> signIn(@Valid @RequestBody SigninRequest signinRequest) {
 
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(signinRequest.getRegNumber(), signinRequest.getPassword()));
+                new UsernamePasswordAuthenticationToken(signinRequest.getRegNumber().toLowerCase(), signinRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateJwtToken(authentication);
-        Member member =memberRepository.findByRegNumber(tokenProvider.getRegNumberFromToken(jwt)).orElseThrow(
+        Member member =memberRepository.findByRegNumber(tokenProvider.getRegNumberFromToken(jwt).toLowerCase()).orElseThrow(
                 ()->new EntityNotFoundException("User not found with the name")
         );
 
@@ -108,7 +109,7 @@ public class MemberService {
     }
 
     public ResponseEntity<ApiResponse> assignRole(String regNumber, String roleName){
-        Member member = memberRepository.findByRegNumber(regNumber).orElseThrow(
+        Member member = memberRepository.findByRegNumber(regNumber.toLowerCase()).orElseThrow(
                 ()->new EntityNotFoundException("No member found with reg number " + regNumber)
         );
 
@@ -116,7 +117,7 @@ public class MemberService {
            return new ResponseEntity<>(new ApiResponse(false, "Invalid role name"), HttpStatus.BAD_REQUEST);
        }
 
-        Role role = roleRepository.findByName(ERole.valueOf(roleName)).orElseThrow(()->new EntityNotFoundException("Role not set"));
+        Role role = roleRepository.findByName(ERole.valueOf(roleName.toUpperCase())).orElseThrow(()->new EntityNotFoundException("Role not set"));
         List<Role> memberRoles = member.getRoles();
         //check if the user has already been given the role
         for (Role value : memberRoles) {
@@ -130,13 +131,13 @@ public class MemberService {
         return new ResponseEntity<>(new ApiResponse(true, "Role assigned successfully"), HttpStatus.OK);
     }
     public ResponseEntity<ApiResponse> assignPosition(String regNumber, String position){
-        Member member = memberRepository.findByRegNumber(regNumber).orElseThrow(
+        Member member = memberRepository.findByRegNumber(regNumber.toLowerCase()).orElseThrow(
                 ()->new EntityNotFoundException("No member found with reg number " + regNumber)
         );
         if(!EPosition.contains(position.toUpperCase().trim())){
             return new ResponseEntity<>(new ApiResponse(false, "Invalid position name"), HttpStatus.BAD_REQUEST);
         }
-        Position mPosition = positionRepository.findByName(EPosition.valueOf(position)).orElseThrow(()->new EntityNotFoundException("No position found with name "+position));
+        Position mPosition = positionRepository.findByName(EPosition.valueOf(position.toUpperCase())).orElseThrow(()->new EntityNotFoundException("No position found with name "+position));
 
         if(member.getPosition() != null){
            return new ResponseEntity<>(new ApiResponse(false, "Member is already assigned a position"), HttpStatus.BAD_REQUEST);
@@ -148,30 +149,87 @@ public class MemberService {
         return new ResponseEntity<>(new ApiResponse(true, "Position assigned"), HttpStatus.OK);
     }
 
-    public ResponseEntity<Page<ExecutiveMembers>> getMembersWithPositions(){
-//        List<Member> membersWithPositions = memberRepository.getMembersWithPositions();
-//        return new ResponseEntity<>(ExecutiveMembers.builder().executives(membersWithPositions).build(), HttpStatus.OK);
-         //TODO:Complete The method by implementing pagination
-        return null;
+    public ResponseEntity<PagedResponse> getMembersWithPositions(int pageNo, int pageSize){
+         Pageable pageRequest = PageRequest.of(pageNo, pageSize);
+         Slice<Member> membersWithPositions = memberRepository.getMembersWithPositions(pageRequest);
+
+         PageMetadata pageMetadata = new PageMetadata();
+         pageMetadata.setFirstPage(membersWithPositions.isFirst());
+         pageMetadata.setLastPage(membersWithPositions.isLast());
+         pageMetadata.setHasNext(membersWithPositions.hasNext());
+         pageMetadata.setHasPrevious(membersWithPositions.hasPrevious());
+         pageMetadata.setPageNumber(membersWithPositions.getNumber());
+         pageMetadata.setPageSize((membersWithPositions.getSize()));
+         pageMetadata.setNumberOfElementsOnPage(membersWithPositions.getNumberOfElements());
+
+         PagedResponse response = new PagedResponse();
+         response.setMembersList(membersWithPositions.getContent());
+         response.setPageMetadata(pageMetadata);
+         return new ResponseEntity<>(response,HttpStatus.OK );
     }
 
-    public ResponseEntity<Members> getAllMembers(){
-        //TODO: Complete the method by paginating the response
-
-        return null;
+    public ResponseEntity<PagedResponse> getAllMembers(int pageNo, int pageSize){
+        Pageable pageRequest = PageRequest.of(pageNo, pageSize);
+        Slice<Member> members = memberRepository.getMembers(pageRequest);
+        //get page metadata
+        PageMetadata pageMeta = PageMetadata.builder()
+                .firstPage(members.isFirst())
+                .hasNext(members.hasNext())
+                .hasPrevious(members.hasPrevious())
+                .lastPage(members.isLast())
+                .pageSize(members.getSize())
+                .pageNumber(members.getNumber())
+                .numberOfElementsOnPage(members.getNumberOfElements())
+                .build();
+        return new ResponseEntity<>(PagedResponse.builder().membersList(members.getContent()).pageMetadata(pageMeta).build(),HttpStatus.OK );
     }
     public ResponseEntity<ApiResponse> flushPositions(){
+
         List<Position> positions = positionRepository.findAll();
-        List<Member> members = memberRepository.getMembersWithPositions();
+
+        //All positions will be picked since the society only has a maximum on 13 positions
+        Pageable page = PageRequest.of(0, 15);
+        Slice<Member> members = memberRepository.getMembersWithPositions(page);
+        if(members.hasContent()){
+            members.getContent().forEach(member -> {
+                member.setPosition(null);
+                memberRepository.save(member);
+            });
+        }
         positions.forEach(position -> {
             position.setMember(null);
             positionRepository.save(position);
         });
-
-        members.forEach(member -> {
-            member.setPosition(null);
-            memberRepository.save(member);
-        });
         return new ResponseEntity<>(new ApiResponse(true, "Operation successful"), HttpStatus.OK);
+    }
+
+    public ResponseEntity<ApiResponse> removeRoleFromMember(String regNumber, String roleName){
+
+        Member member = memberRepository.findByRegNumber(regNumber.toLowerCase()).orElseThrow(
+                ()->new EntityNotFoundException("No member found with Registration number "+regNumber)
+        );
+        if(!ERole.contains(roleName.toUpperCase())){
+            return new ResponseEntity<>(new ApiResponse(false, "Invalid role name"), HttpStatus.BAD_REQUEST);
+        }
+        Role role = roleRepository.findByName(ERole.valueOf(roleName.toUpperCase())).orElseThrow(()->new EntityNotFoundException("No reol found with name " + roleName));
+        List<Role> memberRoles = member.getRoles();
+        if(memberRoles.size() == 1 ){
+            return new ResponseEntity<>(new ApiResponse(false, "Member has only 1 role"), HttpStatus.BAD_REQUEST);
+        }
+        int index = -1;
+        for (int i = 0 ; i < memberRoles.size(); i++) {
+            if (memberRoles.get(i).getName().name().equals(role.getName().name())) {
+                index = i;
+            }
+        }
+        if(index == -1){
+            return new ResponseEntity<>(new ApiResponse(false, "Member does not have this role"), HttpStatus.BAD_REQUEST);
+        }else {
+            memberRoles.remove(index);
+            member.setRoles(memberRoles);
+            memberRepository.save(member);
+            return new ResponseEntity<>(new ApiResponse(true, "Role removed successfully"), HttpStatus.OK);
+
+        }
     }
 }

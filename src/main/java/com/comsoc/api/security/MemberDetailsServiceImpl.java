@@ -24,7 +24,7 @@ public class MemberDetailsServiceImpl implements UserDetailsService
     @Override
     public UserDetails loadUserByUsername(String regNumber) throws UsernameNotFoundException {
 
-        Member member = memberRepository.findByRegNumber(regNumber).orElseThrow(
+        Member member = memberRepository.findByRegNumber(regNumber.toLowerCase()).orElseThrow(
                 ()->new EntityNotFoundException("No user with Reg number "+ regNumber)
         );
 

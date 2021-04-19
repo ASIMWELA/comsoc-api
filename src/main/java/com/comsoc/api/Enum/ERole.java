@@ -12,7 +12,7 @@ public enum ERole {
     private static final Set<String> _values = new HashSet<>();
     static{
         for (ERole choice : ERole.values()) {
-            _values.add(choice.name().toLowerCase());
+            _values.add(choice.name().toUpperCase());
         }
     }
     public static boolean contains(String value){
